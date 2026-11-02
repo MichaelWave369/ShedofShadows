@@ -1,6 +1,7 @@
 import {NightShift,STAGES,AMMO_CAP,MAX_HEALTH,TOTAL_WAVES} from "./engine.js";
 import {drawScene,drawEnemies,drawOverlay} from "./art.js";
 import {createReceipt,downloadReceipt} from "./sidecar.js";
+import {createXRBridge} from "./xr.js";
 const el=id=>document.getElementById(id);
 const canvas=el("game"),ctx=canvas.getContext("2d",{alpha:false}),game=new NightShift();
 const aim={x:.5,y:.5};
@@ -96,7 +97,7 @@ function gamepad(dt){
 function tick(now){
  if(!previous)previous=now;
  const dt=Math.max(0,Math.min(.1,(now-previous)/1000));previous=now;elapsed+=dt;
- gamepad(dt);game.update(dt);
+ if(!xr.active){gamepad(dt);game.update(dt);}
  if(game.phase==="won")record();
  drawScene(ctx,game.stage,elapsed);drawEnemies(ctx,game.enemies);
  if(game.phase==="playing"||game.phase==="paused")drawOverlay(ctx,aim,elapsed);
@@ -123,5 +124,21 @@ el("reload").addEventListener("click",reload);
 el("pause").addEventListener("click",togglePause);
 el("sound").addEventListener("click",()=>{sound=!sound;el("sound").textContent=sound?"SOUND ON":"SOUND OFF";el("sound").setAttribute("aria-pressed",String(sound));if(sound)beep(420);});
 el("receipt").addEventListener("click",()=>downloadReceipt(createReceipt(game)));
-document.addEventListener("visibilitychange",()=>{if(document.hidden)game.pause();});
+document.addEventListener("visibilitychange",()=>{if(document.hidden&&!xr.active)game.pause();});
+const xr=createXRBridge({
+ game,onFire:fire,onReload:reload,
+ onState:(active,supported)=>{
+  const button=el("xr");
+  button.disabled=!active&&!supported;
+  button.textContent=active?"EXIT VR":supported?"ENTER QUEST 3 VR":"VR UNAVAILABLE";
+  el("xr-status").textContent=active
+   ?"VR SESSION ACTIVE · TRIGGER FIRE · SQUEEZE RELOAD · SYSTEM MENU EXIT"
+   :supported
+    ?"QUEST BROWSER VR SUPPORTED · PUT ON HEADSET AND SELECT ENTER QUEST 3 VR"
+    :"IMMERSIVE VR UNAVAILABLE HERE · USE QUEST BROWSER OVER HTTPS";
+ },
+ onError:message=>{el("xr-status").textContent=message;}
+});
+el("xr").addEventListener("click",()=>xr.toggle());
+xr.checkSupport();
 requestAnimationFrame(tick);
