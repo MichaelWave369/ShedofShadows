@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a1018">
+<meta name="description" content="Shed of Shadows: a free retro noir arcade horror browser game in the BLACKOUT universe.">
+<title>Shed of Shadows | Night Shift</title>
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<main class="shell">
+<header class="masthead">
+ <a class="eyebrow" href="https://github.com/MichaelWave369/Blackout" target="_blank" rel="noopener noreferrer">AN ORIGINAL BLACKOUT UNIVERSE SIDE STORY</a>
+ <div class="brand">
+  <div><p class="kicker">CHICAGO • 1947 • SOUTH BRANCH</p><h1>SHED <span>OF</span> SHADOWS</h1><p class="tagline">The night shift never clocked out.</p></div>
+  <div class="stamp">CASE FILE<br>S<span>•</span>O<span>•</span>S / 001</div>
+ </div>
+</header>
+<section class="game-layout" aria-label="Arcade game">
+ <div class="game-pane">
+  <div class="hud">
+   <div><span class="hud-label">LOCATION</span><strong id="location">SOUTH BRANCH</strong></div>
+   <div><span class="hud-label">SCORE</span><strong id="score">000000</strong></div>
+   <div><span class="hud-label">HEALTH</span><strong id="health">♥ ♥ ♥ ♥ ♥ ♥</strong></div>
+   <div><span class="hud-label">CYLINDER</span><strong id="ammo">● ● ● ● ● ●</strong></div>
+  </div>
+  <div class="viewport">
+   <canvas id="game" width="960" height="540" tabindex="0" role="img" aria-label="Arcade shooting gallery. Visible enemies can also be targeted from labeled buttons in the caseboard."></canvas>
+   <div id="overlay" class="overlay">
+    <div class="overlay-inner">
+     <p id="overlay-kicker" class="kicker">A NIGHT SHIFT STORY</p>
+     <h2 id="overlay-title">THE WAREHOUSE IS BREATHING</h2>
+     <p id="overlay-copy">Six shots. No backup. Three locations.</p>
+     <button id="play" class="primary" type="button">BEGIN NIGHT SHIFT</button>
+    </div>
+   </div>
+   <div id="flash" class="flash" aria-hidden="true"></div>
+  </div>
+  <div class="controls">
+   <button id="fire" type="button">FIRE <span>SPACE</span></button>
+   <button id="reload" type="button">RELOAD <span>R</span></button>
+   <button id="pause" type="button">PAUSE <span>ESC</span></button>
+   <button id="sound" type="button" aria-pressed="false">SOUND OFF</button>
+   <button id="receipt" type="button" hidden>EXPORT CASE RECEIPT</button>
+  </div>
+  <p id="message" class="message" role="status" aria-live="polite">Click Begin Night Shift to enter the South Branch.</p>
+ </div>
+ <aside class="caseboard" aria-label="Caseboard and accessible targeting">
+  <h2 class="case-title">NIGHT SHIFT <span>CASEBOARD</span></h2>
+  <p id="chapter" class="chapter">DOCK GATE // 01</p>
+  <p id="story" class="story">Freight stopped arriving. The watchman's lantern is still burning.</p>
+  <div class="divider"></div>
+  <p class="mini-title">VISIBLE TARGETS</p>
+  <div id="targets" class="targets"><p class="muted">Targets appear during combat.</p></div>
+  <div class="divider"></div>
+  <p class="mini-title">YOUR RECORD</p>
+  <p class="record">BEST SCORE: <strong id="best">000000</strong><br>WAVE: <strong id="wave">01 / 06</strong><br>COMBO: <strong id="combo">×0</strong></p>
+  <p class="note">Standalone fictional side story. No BLACKOUT save is changed. Quest 3 and co-op are future rungs.</p>
+ </aside>
+</section>
+<footer><span>© 2026 MichaelWave369 • MIT • NO ACCOUNTS OR TRACKING</span><a href="https://github.com/MichaelWave369/ShedofShadows" target="_blank" rel="noopener noreferrer">SOURCE / ROADMAP</a></footer>
+</main>
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>
