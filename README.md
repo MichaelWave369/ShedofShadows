@@ -3,6 +3,23 @@
 
 A standalone, free, original retro-noir arcade horror side story set near the world of [BLACKOUT](https://github.com/MichaelWave369/Blackout). The story takes place in 1947 at Chicago's South Branch docks and does not change or spoil BLACKOUT's established mystery.
 
+## Rung 2.6: Quest controller reliability (experimental)
+- Keep WebXR \`select\` as the **only** shooting input, preventing a trigger-button poll from double-firing.
+- Accept controller grip (WebXR \`squeeze\`) plus XR-standard Gamepad **grip** or **B/Y** as edge-detected reload fallbacks.
+- **A/X** (button index 4 on XR-standard input) recenters the gallery ahead of the current headset pose. It never forcibly moves the headset/camera.
+- Show live controller tracking status and a **LAST INPUT** line on the fixed, in-headset panel.
+- Pure Node tests validate independent left/right button edges, held inputs, missing devices and generic gamepad rejection.
+- No changes to the browser shooting engine, save format, external dependencies or co-op plans.
+
+### Quest 3 field test
+1. In the Quest Browser, load the deployed HTTPS page and enter immersive VR.
+2. Fire once with the left and right controller triggers. Confirm a single ammo decrement per shot.
+3. Reload with controller grip, then with B/Y. Watch the in-headset ammo and LAST INPUT status.
+4. Face a different direction and press A/X. Confirm the gallery recenters ahead of the player without artificial rotation.
+5. Exit and restart the VR session; verify both controllers recover and 2D mode still works.
+
+**Headset hardware validation remains outstanding.** Button indexing follows the xr-standard mapping only when the input source reports that mapping; some Quest/WebXR configurations may differ. The `squeeze` event remains a fallback.
+
 ## Rung 2.5: Quest comfort and controller diagnostics
 - At VR entry, place the stationary gallery directly ahead of the viewer, regardless of where they stand in the play space or which direction they face.
 - Respect vertical floor tracking for seated and standing players; never move the player's camera.
