@@ -21,8 +21,8 @@ function beep(freq=180){
   oscillator.connect(gain);gain.connect(audio.destination);oscillator.start();oscillator.stop(audio.currentTime+.11);
  }catch{sound=false;}
 }
-function fire(x=aim.x,y=aim.y){
- const result=game.shoot(x,y);
+function fire(x=aim.x,y=aim.y,hand){
+ const result=hand?game.shootHand(hand,x,y):game.shoot(x,y);
  if(result.kind==="blocked")return;
  beep(result.kind==="hit"?260:100);
  if(result.kind!=="empty"){
@@ -31,7 +31,7 @@ function fire(x=aim.x,y=aim.y){
  }
  record();
 }
-function reload(){if(game.reload())beep(330);}
+function reload(hand){if((hand?game.reloadHand(hand):game.reload()))beep(330);}
 function togglePause(){if(game.phase==="playing")game.pause();else if(game.phase==="paused")game.resume();}
 function setOverlay(){
  if(lastPhase===game.phase)return;

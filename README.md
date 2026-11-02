@@ -3,6 +3,25 @@
 
 A standalone, free, original retro-noir arcade horror side story set near the world of [BLACKOUT](https://github.com/MichaelWave369/Blackout). The story takes place in 1947 at Chicago's South Branch docks and does not change or spoil BLACKOUT's established mystery.
 
+## Rung 2.7: Dual revolvers and optional gesture reload (experimental)
+- Each tracked controller now represents its own procedural 3D revolver. Left-hand steel, right-hand copper, with low-cost geometric gun bodies and muzzle flash.
+- In Quest VR, the **left and right six-shot cylinders are independent**. Each hand can shoot and reload while the other remains usable.
+- An optional gesture reload: **hold grip, tip the muzzle down for at least 0.2 seconds, then raise it while still gripping**. The cylinder fills after the normal 0.95-second in-game reload.
+- **B/Y** quick reload remains available. The WebXR **squeeze** event remains a fallback for controllers without reliable tilt poses. WebXR **select** remains the only fire event.
+- The in-headset caseboard now displays left/right ammunition or "LOAD" along with health, score, controller tracking and last input.
+- Desktop still defaults to the original single-revolver six-shot engine. No network or cross-game save access.
+- Extra Node tests cover 12 total independent dual-wield shots, independent timers, tilt gesture gating, input absence and classic-mode compatibility.
+
+### Hardware field test for Quest 3
+1. Start in Quest Browser in a clear play area. Both controllers should show simple hand-held revolvers aligned along the aiming rays.
+2. Fire six shots with the left controller; confirm the right still has six shots and can fire independently.
+3. Hold the left grip and tip that controller down, then return it to neutral. The left-hand ammo should show "LOAD" and refill after a short delay.
+4. Try the right controller's B/Y button to reload. Compare with releasing grip to invoke the squeeze fallback.
+5. Verify headshots, score, wave progression and final Warehouse Warden. Exit and replay the classic flat-screen game.
+6. Report any muzzle misalignment, inadvertent tilt reloads or controller input mismatch before adding animations or co-op.
+
+**Not hardware-verified:** real Quest tracking, grip events and physical ergonomics still need hands-on QA. The stylized revolvers are procedural prototype geometry, not production weapon meshes or realistic cylinder manipulation.
+
 ## Rung 2.6: Quest controller reliability (experimental)
 - Keep WebXR \`select\` as the **only** shooting input, preventing a trigger-button poll from double-firing.
 - Accept controller grip (WebXR \`squeeze\`) plus XR-standard Gamepad **grip** or **B/Y** as edge-detected reload fallbacks.
@@ -67,7 +86,7 @@ Automated Node tests do **not** replace headset testing. This rung has no new lo
 - Zero runtime dependencies and no accounts, ads, telemetry or paid service
 - MIT license, DOM-free seeded engine, Node unit tests, and GitHub Actions
 
-**Current scope:** Single-player desktop is stable in Rung 1; Rung 2 adds an opt-in experimental Quest 3 WebXR rendering path. Multiplayer and BLACKOUT save imports remain future work.
+**Current scope:** Desktop continues to use the Rung 1 single revolver; optional Quest VR now offers experimental dual revolvers. Multiplayer and BLACKOUT save imports remain future work.
 
 ## Controls
 | Action | Mouse/touch | Keyboard | Gamepad |
@@ -96,6 +115,7 @@ Node 20+ is only needed to run tests:
 This side game references the South Branch setting and mysterious K-marked cargo without resolving BLACKOUT's unrevealed identity or changing any detective save. The downloadable receipt is explicitly **unverified player-editable narrative data**; BLACKOUT has no importer for it. See [sidecar contract](docs/sidecar-contract.md).
 
 ## Roadmap
+- **Rung 2.7:** independent dual revolvers with optional tilt-and-raise reload (this PR)
 - **Rung 2:** experimental Quest 3 WebXR controller aiming, fixed comfort gallery and in-headset HUD (this PR); spatial sound and hand-tracking polish follow hardware tests
 - **Rung 3:** opt-in two-player co-op with explicit session security
 - **Rung 4:** reviewed, consent-based evidence transfer if BLACKOUT independently adopts the contract
