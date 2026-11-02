@@ -11,8 +11,14 @@ export const TOTAL_WAVES=STAGES.reduce((n,s)=>n+s.waves.length,0);
 export class NightShift {
  constructor(seed=369){this.seed=seed>>>0;this.reset();}
  random(){this.seed=(Math.imul(1664525,this.seed)+1013904223)>>>0;return this.seed/4294967296;}
- reset(){this.phase="title";this.stage=0;this.wave=0;this.score=0;this.combo=0;this.health=MAX_HEALTH;this.ammo=AMMO_CAP;this.reloadTime=0;this.enemies=[];this.toSpawn=0;this.spawnTimer=0;this.transition=0;this.nextId=1;this.shots=0;this.hits=0;this.notice="The warehouse is breathing.";}
+ reset(){this.phase="title";this.stage=0;this.wave=0;this.score=0;this.combo=0;this.health=MAX_HEALTH;this.ammo=AMMO_CAP;this.reloadTime=0;this.dualEnabled=false;this.handAmmo={left:AMMO_CAP,right:AMMO_CAP};this.handReload={left:0,right:0};this.enemies=[];this.toSpawn=0;this.spawnTimer=0;this.transition=0;this.nextId=1;this.shots=0;this.hits=0;this.notice="The warehouse is breathing.";}
  start(){this.reset();this.phase="playing";this.openWave();this.notice="Night shift begun. Shoot the shadows.";}
+ enableDual(){this.dualEnabled=true;this.handAmmo={left:AMMO_CAP,right:AMMO_CAP};this.handReload={left:0,right:0};}
+ startDual(){this.start();this.enableDual();}
+ reloadHand(hand){
+  if(!this.dualEnabled||!["left","right"].includes(hand)||this.phase!=="playing"||this.transition>0||this.handReload[hand]>0||this.handAmmo[hand]===AMMO_CAP)return false;
+  this.handReload[hand]=.95;this.notice=hand.toUpperCase()+" revolver reloading...";return true;
+ }
  openWave(){this.enemies=[];this.toSpawn=STAGES[this.stage].waves[this.wave];this.spawnTimer=.45;}
  pause(){if(this.phase==="playing"){this.phase="paused";this.notice="Night shift paused.";}}
  resume(){if(this.phase==="paused"){this.phase="playing";this.notice="Watch the shadows.";}}
@@ -37,6 +43,16 @@ export class NightShift {
   if(this.phase!=="playing"||this.transition>0)return {kind:"blocked"};
   if(this.reloadTime>0||this.ammo<1){this.notice="Empty cylinder. Reload!";return {kind:"empty"};}
   this.ammo--;this.shots++;
+  return this.resolveShot(x,y);
+ }
+ shootHand(hand,x,y){
+  if(!this.dualEnabled||!["left","right"].includes(hand))return {kind:"blocked"};
+  if(this.phase!=="playing"||this.transition>0)return {kind:"blocked"};
+  if(this.handReload[hand]>0||this.handAmmo[hand]<1){this.notice=hand.toUpperCase()+" cylinder empty. Reload!";return {kind:"empty",hand};}
+  this.handAmmo[hand]--;this.shots++;
+  return {...this.resolveShot(x,y),hand};
+ }
+ resolveShot(x,y){
   let target=null,closest=Infinity;
   for(const enemy of this.enemies){
    const distance=Math.hypot(x-enemy.x,y-enemy.y);
@@ -58,6 +74,12 @@ export class NightShift {
   if(this.reloadTime>0){
    this.reloadTime=Math.max(0,this.reloadTime-dt);
    if(this.reloadTime===0){this.ammo=AMMO_CAP;this.notice="Cylinder loaded.";}
+  }
+  if(this.dualEnabled)for(const hand of ["left","right"]){
+   if(this.handReload[hand]>0){
+    this.handReload[hand]=Math.max(0,this.handReload[hand]-dt);
+    if(this.handReload[hand]===0){this.handAmmo[hand]=AMMO_CAP;this.notice=hand.toUpperCase()+" cylinder loaded.";}
+   }
   }
   if(this.transition>0){
    this.transition=Math.max(0,this.transition-dt);
