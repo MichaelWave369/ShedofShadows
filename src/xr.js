@@ -1,4 +1,5 @@
 import {GALLERY_Z,worldPoint,rayPlaneHit} from "./xr-math.js";
+import {playerAnchor} from "./xr-anchor.js";
 
 // WebGL1 stereo arcade gallery. The 2D Canvas is not an XR layer.
 function compile(gl,type,source){
@@ -104,8 +105,8 @@ function buildWorld(game,eye,controllers){
    g.line([hit.world[0],hit.world[1]-.10,GALLERY_Z+.096],[hit.world[0],hit.world[1]+.10,GALLERY_Z+.096],color);
   }
  }
- g.xy(-1.9,eye+1.09,1.9,eye+1.68,-3.46,C.black);
- g.line([-1.9,eye+1.09,-3.45],[1.9,eye+1.09,-3.45],C.gold);
+ g.xy(-1.9,eye+.67,1.9,eye+1.18,-3.46,C.black);
+ g.line([-1.9,eye+.67,-3.45],[1.9,eye+.67,-3.45],C.gold);
  return g;
 }
 function createRenderer(gl){
@@ -124,15 +125,19 @@ function createRenderer(gl){
  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
  let lastHud="";
- function updateText(game){
+ function updateText(game,controllers){
+  const left=controllers.some(c=>c.side==="left");
+  const right=controllers.some(c=>c.side==="right");
+  const tracking="L:"+(left?"OK":"--")+" R:"+(right?"OK":"--");
   const hint=game.phase==="won"?"DAWN SURVIVED · TRIGGER TO REPLAY":game.phase==="lost"?"SHIFT LOST · TRIGGER TO REPLAY":game.phase==="paused"?"PAUSED · TRIGGER TO RESUME":"TRIGGER FIRE · SQUEEZE RELOAD · SYSTEM MENU EXIT";
-  const key=[game.phase,game.score,game.health,game.ammo,game.reloadTime>0,game.stage,game.wave].join(":");
+  const key=[game.phase,game.score,game.health,game.ammo,game.reloadTime>0,game.stage,game.wave,tracking].join(":");
   if(key===lastHud)return;
   lastHud=key;
   pen.clearRect(0,0,1024,192);
   pen.fillStyle="#09121b";pen.fillRect(0,0,1024,192);
   pen.strokeStyle="#ac7958";pen.lineWidth=4;pen.strokeRect(3,3,1018,186);
   pen.fillStyle="#f2e3c8";pen.font="bold 44px Georgia,serif";pen.fillText("SHED OF SHADOWS",28,58);
+  pen.font="24px monospace";pen.fillStyle="#aec5b7";pen.fillText(tracking,786,58);
   pen.font="bold 27px monospace";pen.fillStyle="#e9b58b";
   pen.fillText("SCORE "+game.score+"   LIFE "+game.health+"/6   AMMO "+(game.reloadTime>0?"RELOADING":game.ammo+"/6"),30,114);
   pen.font="20px monospace";pen.fillStyle="#d5c9af";pen.fillText(hint,30,158);
@@ -153,7 +158,7 @@ function createRenderer(gl){
   gl.drawArrays(mode,0,count);
  }
  function drawText(view,eye){
-  const z=-3.43,x1=-1.85,x2=1.85,y1=eye+1.12,y2=eye+1.65;
+  const z=-3.43,x1=-1.85,x2=1.85,y1=eye+.69,y2=eye+1.16;
   upload(textBuffer,[x1,y1,z,0,0,x2,y1,z,1,0,x2,y2,z,1,1,x1,y1,z,0,0,x2,y2,z,1,1,x1,y2,z,0,1]);
   gl.useProgram(txt);
   gl.uniformMatrix4fv(tproj,false,view.projectionMatrix);
@@ -174,7 +179,7 @@ function createRenderer(gl){
     if(p)controllers.push({pose:p,side:source.handedness});
    }
    const geometry=buildWorld(game,eye,controllers);
-   upload(mesh,geometry.tri);upload(lines,geometry.lines);updateText(game);
+   upload(mesh,geometry.tri);upload(lines,geometry.lines);updateText(game,controllers);
    const layer=session.renderState.baseLayer;
    gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
    gl.enable(gl.DEPTH_TEST);gl.enable(gl.SCISSOR_TEST);
@@ -198,10 +203,10 @@ function createRenderer(gl){
 
 // Runtime WebXR feature detection. No WebXR dependency in desktop mode.
 export function createXRBridge({game,onFire,onReload,onState,onError}){
- let session=null,refSpace=null,eye=0,renderer=null,canvas=null,lastFrame=0;
+ let session=null,baseSpace=null,refSpace=null,eye=0,renderer=null,canvas=null,lastFrame=0,anchored=false;
  let supported=false,suspended=false;
  function clear(){
-  session=null;refSpace=null;lastFrame=0;eye=0;
+  session=null;baseSpace=null;refSpace=null;lastFrame=0;eye=0;anchored=false;
   renderer?.dispose();renderer=null;canvas?.remove();canvas=null;
   if(game.phase==="playing")game.pause();
   onState?.(false,supported);
@@ -228,8 +233,13 @@ export function createXRBridge({game,onFire,onReload,onState,onError}){
    if(gl.makeXRCompatible)await gl.makeXRCompatible();
    if(typeof XRWebGLLayer==="undefined")throw new Error("XRWebGLLayer unavailable.");
    current.updateRenderState({baseLayer:new XRWebGLLayer(current,gl)});
-   try{refSpace=await current.requestReferenceSpace("local-floor");}
-   catch{refSpace=await current.requestReferenceSpace("local");}
+   try{baseSpace=await current.requestReferenceSpace("local-floor");}
+   catch{baseSpace=await current.requestReferenceSpace("local");}
+   refSpace=baseSpace;
+   baseSpace.addEventListener?.("reset",()=>{
+    // Quest system recenter should re-anchor the gallery on the next frame.
+    refSpace=baseSpace;eye=0;anchored=false;lastFrame=0;
+   });
    renderer=createRenderer(gl);
    current.addEventListener("select",event=>{
     if(!refSpace)return;
@@ -250,8 +260,20 @@ export function createXRBridge({game,onFire,onReload,onState,onError}){
    const frameLoop=(time,frame)=>{
     if(session!==current)return;
     current.requestAnimationFrame(frameLoop);
-    const pose=frame.getViewerPose(refSpace);
+    let pose=frame.getViewerPose(refSpace);
     if(!pose)return;
+    if(!anchored){
+     // Fixes a subtle but serious comfort bug: local-floor origin may be
+     // meters away from the headset, or the player may face another wall.
+     const anchor=playerAnchor(pose);
+     if(anchor&&typeof XRRigidTransform!=="undefined"){
+      try{refSpace=baseSpace.getOffsetReferenceSpace(new XRRigidTransform(anchor.position,anchor.orientation));}
+      catch{refSpace=baseSpace;}
+     }
+     anchored=true;
+     pose=frame.getViewerPose(refSpace);
+     if(!pose)return;
+    }
     if(eye===0)eye=pose.transform.position.y||.0001;
     const dt=lastFrame?Math.max(0,Math.min(.1,(time-lastFrame)/1000)):0;
     lastFrame=time;

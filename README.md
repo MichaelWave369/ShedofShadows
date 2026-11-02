@@ -3,6 +3,24 @@
 
 A standalone, free, original retro-noir arcade horror side story set near the world of [BLACKOUT](https://github.com/MichaelWave369/Blackout). The story takes place in 1947 at Chicago's South Branch docks and does not change or spoil BLACKOUT's established mystery.
 
+## Rung 2.5: Quest comfort and controller diagnostics
+- At VR entry, place the stationary gallery directly ahead of the viewer, regardless of where they stand in the play space or which direction they face.
+- Respect vertical floor tracking for seated and standing players; never move the player's camera.
+- Re-anchor automatically after an XR reference-space reset (including supported Quest recenter events).
+- Lower the world-space HUD into a less strenuous viewing angle.
+- Display live left/right controller tracking presence on the in-headset HUD.
+- Preserve all browser/desktop gameplay and controls. Add pure yaw/anchor tests.
+
+### Hardware test checklist
+1. Start facing a different direction in your play area: the gallery should still appear ahead.
+2. Enter while seated, then in a standing posture: the gallery should appear at a sensible eye-relative height each time.
+3. Rotate your head; the gallery should stay still in the room rather than following your head.
+4. Point both controllers and look for **L:OK R:OK** (or -- if an input's target ray isn't tracked).
+5. Aim and fire, reload with grip, exit the immersive session and verify desktop still works.
+6. Try Quest's system recenter; check whether the gallery recenters. Actual support depends on the headset/browser's reference-space reset behavior.
+
+Automated Node tests do **not** replace headset testing. This rung has no new locomotion, network features, hand tracking or multiplayer.
+
 ## Rung 2: Quest 3 WebXR foundation (experimental)
 - Detects immersive-vr support at runtime, never by browser user-agent.
 - Offers an **ENTER QUEST 3 VR** button only when the browser reports support.
