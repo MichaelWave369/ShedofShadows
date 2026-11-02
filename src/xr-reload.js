@@ -4,7 +4,8 @@
 export function muzzleY(matrix){
  if(!matrix||matrix.length!==16||!Number.isFinite(matrix[9]))return null;
  // XR controller -Z is the targeting/muzzle direction.
- return -matrix[9];
+ // Canonicalize signed zero so tests and diagnostics agree with neutral tilt.
+ return matrix[9]===0?0:-matrix[9];
 }
 export function makeTiltReload(){
  const byHand=new Map();
