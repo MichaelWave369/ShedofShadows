@@ -1,6 +1,7 @@
 import {GALLERY_Z,worldPoint,rayPlaneHit} from "./xr-math.js";
 import {playerAnchor} from "./xr-anchor.js";
 import {makeXRButtonTracker} from "./xr-controls.js";
+import {makeTiltReload,muzzleY} from "./xr-reload.js";
 
 // WebGL1 stereo arcade gallery. The 2D Canvas is not an XR layer.
 function compile(gl,type,source){
@@ -47,7 +48,41 @@ const C={
  shadow:[.035,.04,.065],heavy:[.15,.115,.13],eye:[1,.24,.16],
  danger:[1,.32,.17],safe:[.56,.58,.49],beam:[.98,.70,.34],boss:[.20,.07,.12]
 };
-function buildWorld(game,eye,controllers){
+// A tiny original procedural revolver, built around the tracked target-ray
+// transform. Barrel follows -Z, so aiming visuals and physics share a ray.
+// Never override or move the player's tracked hands.
+function weaponPoint(m,x,y,z){
+ return [m[0]*x+m[4]*y+m[8]*z+m[12],
+         m[1]*x+m[5]*y+m[9]*z+m[13],
+         m[2]*x+m[6]*y+m[10]*z+m[14]];
+}
+function addRevolver(g,m,hand,flash){
+ if(hand!=="left"&&hand!=="right")return;
+ const p=(x,y,z)=>weaponPoint(m,x,y,z);
+ const finish=hand==="left"?[.42,.48,.59]:[.62,.43,.26];
+ const dark=[.12,.13,.15],brass=[.75,.55,.32],grip=[.22,.13,.09];
+ // Barrel, top rib, cylinder, angled wooden handle, sight and hammer.
+ g.quad(p(-.036,-.025,-.24),p(.036,-.025,-.24),p(.036,.027,-.24),p(-.036,.027,-.24),finish);
+ g.quad(p(-.036,-.025,-.07),p(.036,-.025,-.07),p(.036,.027,-.07),p(-.036,.027,-.07),finish);
+ for(const x of [-.036,.036]){
+  g.line(p(x,.027,-.07),p(x,.027,-.24),brass);
+  g.line(p(x,-.025,-.07),p(x,-.025,-.24),dark);
+ }
+ g.ellipse(...p(0,0,-.067),.055,.047,brass);
+ g.ellipse(...p(0,0,-.064),.034,.032,dark);
+ g.quad(p(-.028,-.04,-.042),p(.028,-.04,-.042),p(.053,-.14,.085),p(-.045,-.14,.085),grip);
+ g.line(p(-.02,.035,-.25),p(.02,.035,-.25),brass);
+ g.line(p(-.025,.055,.015),p(.020,.055,.015),finish);
+ if(flash>0){
+  const mouth=p(0,0,-.26);
+  const bright=[1,.72,.27];
+  for(let i=0;i<8;i++){
+   const angle=i*Math.PI/4;
+   g.line(mouth,p(Math.cos(angle)*.13,Math.sin(angle)*.13,-.34),bright);
+  }
+ }
+}
+function buildWorld(game,eye,controllers,flashes){
  const g=new Geometry(),s=game.stage;
  g.xy(-3,eye-1.6,3,eye+1.9,-4.65,s===2?[.12,.10,.15]:C.wall);
  g.quad([-3,eye-1.6,-2.4],[3,eye-1.6,-2.4],[3,eye-1.6,-5],[-3,eye-1.6,-5],C.floor);
@@ -100,6 +135,7 @@ function buildWorld(game,eye,controllers){
   const end=hit?.world??[origin[0]-m[8]*4,origin[1]-m[9]*4,origin[2]-m[10]*4];
   const color=controller.side==="left"?[.65,.71,.84]:C.beam;
   g.line(origin,end,color);
+  addRevolver(g,m,controller.side,flashes[controller.side]||0);
   if(hit){
    g.ring(hit.world[0],hit.world[1],GALLERY_Z+.095,.055,.055,color);
    g.line([hit.world[0]-.10,hit.world[1],GALLERY_Z+.096],[hit.world[0]+.10,hit.world[1],GALLERY_Z+.096],color);
@@ -131,7 +167,7 @@ function createRenderer(gl){
   const right=controllers.some(c=>c.side==="right");
   const tracking="L:"+(left?"OK":"--")+" R:"+(right?"OK":"--");
   const hint=game.phase==="won"?"DAWN SURVIVED · TRIGGER TO REPLAY":game.phase==="lost"?"SHIFT LOST · TRIGGER TO REPLAY":game.phase==="paused"?"PAUSED · TRIGGER TO RESUME":"TRIGGER FIRE · SQUEEZE RELOAD · SYSTEM MENU EXIT";
-  const key=[game.phase,game.score,game.health,game.ammo,game.reloadTime>0,game.stage,game.wave,tracking,lastAction].join(":");
+  const key=[game.phase,game.score,game.health,game.dualEnabled,game.handAmmo.left,game.handAmmo.right,game.handReload.left>0,game.handReload.right>0,game.stage,game.wave,tracking,lastAction].join(":");
   if(key===lastHud)return;
   lastHud=key;
   pen.clearRect(0,0,1024,192);
@@ -140,7 +176,7 @@ function createRenderer(gl){
   pen.fillStyle="#f2e3c8";pen.font="bold 44px Georgia,serif";pen.fillText("SHED OF SHADOWS",28,58);
   pen.font="24px monospace";pen.fillStyle="#aec5b7";pen.fillText(tracking,786,58);
   pen.font="bold 27px monospace";pen.fillStyle="#e9b58b";
-  pen.fillText("SCORE "+game.score+"   LIFE "+game.health+"/6   AMMO "+(game.reloadTime>0?"RELOADING":game.ammo+"/6"),30,114);
+  pen.fillText("L "+(game.handReload.left>0?"LOAD":game.handAmmo.left+"/6")+"  R "+(game.handReload.right>0?"LOAD":game.handAmmo.right+"/6")+"   LIFE "+game.health+"/6  SCORE "+game.score,30,114);
   pen.font="20px monospace";pen.fillStyle="#d5c9af";pen.fillText(hint,30,150);
   pen.font="15px monospace";pen.fillStyle="#c0d1c7";pen.fillText("LAST INPUT: "+lastAction,30,177);
   gl.bindTexture(gl.TEXTURE_2D,texture);
@@ -173,14 +209,14 @@ function createRenderer(gl){
   gl.drawArrays(gl.TRIANGLES,0,6);
  }
  return {
-  render(session,pose,frame,refSpace,eye,game,lastAction){
+  render(session,pose,frame,refSpace,eye,game,lastAction,flashes){
    const controllers=[];
    for(const source of session.inputSources){
     if(!source.targetRaySpace)continue;
     const p=frame.getPose(source.targetRaySpace,refSpace);
     if(p)controllers.push({pose:p,side:source.handedness});
    }
-   const geometry=buildWorld(game,eye,controllers);
+   const geometry=buildWorld(game,eye,controllers,flashes);
    upload(mesh,geometry.tri);upload(lines,geometry.lines);updateText(game,controllers,lastAction);
    const layer=session.renderState.baseLayer;
    gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
@@ -208,10 +244,13 @@ export function createXRBridge({game,onFire,onReload,onState,onError}){
  let session=null,baseSpace=null,refSpace=null,eye=0,renderer=null,canvas=null,lastFrame=0,anchored=false;
  let supported=false,suspended=false;
  const buttons=makeXRButtonTracker();
+ const tilt=makeTiltReload();
+ const flashes={left:0,right:0};
  let lastAction="NONE";
  function clear(){
   session=null;baseSpace=null;refSpace=null;lastFrame=0;eye=0;anchored=false;
-  buttons.reset();lastAction="NONE";
+  buttons.reset();tilt.reset();flashes.left=0;flashes.right=0;lastAction="NONE";
+  game.dualEnabled=false;
   renderer?.dispose();renderer=null;canvas?.remove();canvas=null;
   if(game.phase==="playing")game.pause();
   onState?.(false,supported);
@@ -248,25 +287,32 @@ export function createXRBridge({game,onFire,onReload,onState,onError}){
    renderer=createRenderer(gl);
    current.addEventListener("select",event=>{
     if(!refSpace)return;
-    if(game.phase==="won"||game.phase==="lost"){game.start();return;}
+    if(game.phase==="won"||game.phase==="lost"){game.startDual();return;}
     if(game.phase==="paused"){game.resume();return;}
     let p;
     try{p=event.frame.getPose(event.inputSource.targetRaySpace,refSpace);}catch{return;}
     if(!p)return;
     const hit=rayPlaneHit(p.transform.matrix,eye);
-    if(hit){onFire(hit.x,hit.y);lastAction=(event.inputSource.handedness||"UNKNOWN").toUpperCase()+" FIRE";}
+    if(hit){
+     const hand=event.inputSource.handedness;
+     if(hand!=="left"&&hand!=="right")return;
+     onFire(hit.x,hit.y,hand);flashes[hand]=6;
+     lastAction=hand.toUpperCase()+" FIRE";
+    }
    });
    current.addEventListener("squeeze",event=>{
-    if(game.phase==="playing"){
-     onReload();
-     lastAction=(event.inputSource?.handedness||"UNKNOWN").toUpperCase()+" GRIP RELOAD";
+    const hand=event.inputSource?.handedness;
+    if(hand!=="left"&&hand!=="right")return;
+    const alreadyUsed=tilt.consumeSqueeze(hand);
+    if(game.phase==="playing"&&!alreadyUsed){
+     onReload(hand);lastAction=hand.toUpperCase()+" GRIP RELOAD";
     }
    });
    current.addEventListener("visibilitychange",()=>{
     if(current.visibilityState==="hidden"&&game.phase==="playing"){game.pause();suspended=true;}
     else if(current.visibilityState==="visible"&&suspended){suspended=false;game.resume();}
    });
-   game.start();onState?.(true,supported);
+   game.startDual();onState?.(true,supported);
    const frameLoop=(time,frame)=>{
     if(session!==current)return;
     current.requestAnimationFrame(frameLoop);
@@ -289,7 +335,12 @@ export function createXRBridge({game,onFire,onReload,onState,onError}){
     lastFrame=time;
     for(const action of buttons.update(current.inputSources)){
      if(action.kind==="reload"&&game.phase==="playing"){
-      onReload();lastAction=action.hand.toUpperCase()+" RELOAD";
+      // Grip is handled by tilt gesture or the squeeze event. Only
+      // the distinct B/Y button is an immediate reload fallback.
+      const input=Array.from(current.inputSources).find(s=>s.handedness===action.hand);
+      if(input?.gamepad?.buttons?.[5]?.pressed){
+       onReload(action.hand);lastAction=action.hand.toUpperCase()+" B/Y RELOAD";
+      }
      }else if(action.kind==="recenter"){
       // Re-anchor on next XR frame so it uses the new tracking origin.
       refSpace=baseSpace;anchored=false;eye=0;lastFrame=0;
@@ -297,8 +348,19 @@ export function createXRBridge({game,onFire,onReload,onState,onError}){
       return;
      }
     }
+    for(const source of current.inputSources){
+     const hand=source.handedness;
+     if(hand!=="left"&&hand!=="right")continue;
+     const gripping=Boolean(source.gamepad?.mapping==="xr-standard"&&source.gamepad?.buttons?.[1]?.pressed);
+     const p=source.targetRaySpace?frame.getPose(source.targetRaySpace,refSpace):null;
+     if(tilt.update(hand,gripping,muzzleY(p?.transform?.matrix),dt)&&game.phase==="playing"){
+      onReload(hand);lastAction=hand.toUpperCase()+" TILT RELOAD";
+     }
+    }
     game.update(dt);
-    renderer.render(current,pose,frame,refSpace,eye,game,lastAction);
+    renderer.render(current,pose,frame,refSpace,eye,game,lastAction,flashes);
+    flashes.left=Math.max(0,flashes.left-1);
+    flashes.right=Math.max(0,flashes.right-1);
    };
    current.requestAnimationFrame(frameLoop);
   }catch(error){
